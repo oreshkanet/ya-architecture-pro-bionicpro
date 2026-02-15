@@ -56,6 +56,9 @@
    - В атрибуты клиента добавлено: `pkce.code.challenge.method": "S256"` — разрешён только метод S256 для PKCE.
    - `directAccessGrantsEnabled` переведён в `false`, чтобы отключить Resource Owner Password Credentials (логин/пароль напрямую) и оставить только Authorization Code + PKCE для SPA.
 
+![pkce_1](./asset/task1/pkce_1.png)
+![pkce_2](./asset/task1/pkce_2.png)
+
 ---
 
 ## Разработка сервиса отчётов
