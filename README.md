@@ -59,6 +59,35 @@
 ![pkce_1](./asset/task1/pkce_1.png)
 ![pkce_2](./asset/task1/pkce_2.png)
 
+### Обеспечение безопасного получения и хранение access-и refresh-токенов.
+
+#### bionicpro-auth (Go)
+- **Роуты:** `/login` (редирект в Keycloak с `scope=openid offline_access`), `/auth/callback` (обмен code на токены, сохранение сессии, установка cookie, редирект на фронт), `/logout`, `/session/check`, `/session/validate` (с ротацией), `/api/reports` (прокси к reports API с Bearer).
+- **Сессии:** in-memory store с TTL; данные сессии — access_token, зашифрованный `refresh_token` (AES-GCM), expires_at. Привязка токенов к session id.
+- **Cookie:** имя `bionicpro_session`, HTTP-only, Secure (по конфигу), SameSite=Lax, MaxAge=SessionMaxAge (по умолчанию 1800 с).
+- **Обновление access_token:** при обращении к защищённому ресурсу, если `access_token` истёк, обмен `refresh_token` на новую пару в Keycloak, обновление данных сессии (при пустом новом `refresh_token` старый сохраняется).
+- **Ротация сессии:** при каждом успешном запросе к защищённому ресурсу (`requireSession`) — новый session id, перенос данных, установка новой cookie (защита от session fixation).
+- **Конфиг:** порт, Keycloak (URL, realm, client id/secret), FrontendURL, ReportsAPIURL, SessionCookieName, SessionMaxAge, SecureCookie, EncryptionKey; SessionMaxAge читается из env.
+
+#### Keycloak (realm-export.json)
+- **realm:** `accessTokenLifespan: 120` (2 мин), поддержка offline-сессий.
+- **Клиент bionicpro-auth:** confidential, client-secret, redirectUris для auth сервиса, `defaultClientScopes` включают `offline_access` для выдачи refresh_token.
+- **Realm-роль** `offline_access`**:** для выдачи refresh-токена при запросе `scope=offline_access` пользователь должен иметь realm-роль `offline_access`, добавлена роль в список realm roles.
+
+#### Frontend
+- Убран прямой обмен с Keycloak; все запросы к auth идут на `REACT_APP_AUTH_URL` (например `http://localhost:8001`) с `credentials: 'include'`.
+- Логин — редирект на `${authUrl}/login`, логаут — на `${authUrl}/logout`, проверка авторизации — `GET ${authUrl}/session/check`, скачивание отчёта — `GET ${authUrl}/api/reports`. Сессионная cookie передаётся автоматически.
+
+#### docker-compose.yaml
+- Добавлен сервис **bionicpro-auth**: сборка из `./bionicpro-auth`, порт 8001, переменные KEYCLOAK_\*, FRONTEND_URL, REPORTS_API_URL, SESSION_\*, ENCRYPTION_KEY; `depends_on: keycloak`.
+- У **frontend** добавлены `REACT_APP_AUTH_URL: http://localhost:8001` и `depends_on: bionicpro-auth`.
+
+#### Примеры работы
+
+![auth_1](./asset/task1/auth_1.png)
+![auth_2](./asset/task1/auth_2.png)
+![auth_3](./asset/task1/auth_3.png)
+
 ---
 
 ## Разработка сервиса отчётов
