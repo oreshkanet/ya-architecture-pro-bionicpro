@@ -2,3 +2,5 @@
 2024__yandex-architecture-sso.code-workspace
 tmp
 *.drawio.bkp
+ldap-config
+ldap-data

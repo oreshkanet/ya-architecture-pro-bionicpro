@@ -19,10 +19,6 @@
       {
         "name": "prothetic_user",
         "description": "Prothetic user role with report access"
-      },
-      {
-        "name": "offline_access",
-        "description": "Role for offline token (refresh token) support"
       }
     ]
   },
@@ -41,8 +37,7 @@
         }
       ],
       "realmRoles": [
-        "user",
-        "offline_access"
+        "user"
       ]
     },
     {
@@ -59,8 +54,7 @@
         }
       ],
       "realmRoles": [
-        "user",
-        "offline_access"
+        "user"
       ]
     },
     {
@@ -77,8 +71,7 @@
         }
       ],
       "realmRoles": [
-        "administrator",
-        "offline_access"
+        "administrator"
       ]
     },
     {
@@ -95,8 +88,7 @@
         }
       ],
       "realmRoles": [
-        "prothetic_user",
-        "offline_access"
+        "prothetic_user"
       ]
     },
     {
@@ -113,8 +105,7 @@
         }
       ],
       "realmRoles": [
-        "prothetic_user",
-        "offline_access"
+        "prothetic_user"
       ]
     },
     {
@@ -131,8 +122,7 @@
         }
       ],
       "realmRoles": [
-        "prothetic_user",
-        "offline_access"
+        "prothetic_user"
       ]
     }
   ],
@@ -159,7 +149,9 @@
         "web-origins",
         "profile",
         "email",
-        "roles",
+        "roles"
+      ],
+      "optionalClientScopes": [
         "offline_access"
       ]
     },
@@ -187,5 +179,102 @@
       "secret": "oNwoLQdvJAvRcL89SydqCWCe5ry1jMgq",
       "bearerOnly": true
     }
-  ]
+  ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "name": "bionicpro-ldap",
+        "providerId": "ldap",
+        "subType": "org.keycloak.storage.UserStorageProvider",
+        "config": {
+          "enabled": ["true"],
+          "priority": ["0"],
+          "vendor": ["other"],
+          "connectionUrl": ["ldap://openldap:389"],
+          "bindDn": ["cn=admin,dc=example,dc=com"],
+          "bindCredential": ["admin"],
+          "authType": ["simple"],
+          "startTls": ["false"],
+          "batchSizeForSync": ["1000"],
+          "editMode": ["WRITABLE"],
+          "syncRegistrations": ["false"],
+          "importEnabled": ["true"],
+          "usernameLDAPAttribute": ["uid"],
+          "rdnLDAPAttribute": ["uid"],
+          "uuidLDAPAttribute": ["uid"],
+          "userObjectClasses": ["inetOrgPerson"],
+          "usersDn": ["ou=People,dc=example,dc=com"],
+          "searchScope": ["1"],
+          "validatePasswordPolicy": ["false"],
+          "trustEmail": ["true"],
+          "pagination": ["true"]
+        },
+        "subComponents": {
+          "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
+            {
+              "name": "username",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["uid"],
+                "is.mandatory.in.ldap": ["true"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["username"]
+              }
+            },
+            {
+              "name": "email",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["mail"],
+                "is.mandatory.in.ldap": ["false"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["email"]
+              }
+            },
+            {
+              "name": "firstName",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["cn"],
+                "is.mandatory.in.ldap": ["false"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["firstName"]
+              }
+            },
+            {
+              "name": "lastName",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["sn"],
+                "is.mandatory.in.ldap": ["false"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["lastName"]
+              }
+            },
+            {
+              "name": "ldap-roles-mapper",
+              "providerId": "role-ldap-mapper",
+              "config": {
+                "mode": ["READ_ONLY"],
+                "membership.attribute.type": ["DN"],
+                "roles.dn": ["ou=Groups,dc=example,dc=com"],
+                "user.roles.retrieve.strategy": ["LOAD_ROLES_BY_MEMBER_ATTRIBUTE"],
+                "membership.ldap.attribute": ["member"],
+                "membership.user.ldap.attribute": ["uid"],
+                "role.name.ldap.attribute": ["cn"],
+                "memberof.ldap.attribute": ["memberOf"],
+                "use.realm.roles.mapping": ["true"],
+                "role.object.classes": ["groupOfNames"],
+                "client.id": ["bionicpro-auth"]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }

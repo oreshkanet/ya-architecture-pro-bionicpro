@@ -88,6 +88,43 @@
 ![auth_2](./asset/task1/auth_2.png)
 ![auth_3](./asset/task1/auth_3.png)
 
+### LDAP для возможности получения данных о пользователях представительства BionicPRO в другой стране
+
+#### OpenLDAP в `docker-compose.yaml`:
+
+- Сервис openldap (образ osixia/openldap:1.5.0) с базой dc=example,dc=com.
+- При первом старте подхватывается `ldap/config.ldif` как bootstrap 50-data.ldif (OU, пользователи, группы).
+- Для keycloak добавлена зависимость от openldap.
+- Порты: 389, 636.
+
+![ldap_1](./asset/task1/ldap_1.png)
+![ldap_2](./asset/task1/ldap_2.png)
+![ldap_3](./asset/task1/ldap_3.png)
+![ldap_4](./asset/task1/ldap_4.png)
+
+#### Маппинг ролей
+
+- Маппер role-ldap-mapper: группы из `ou=Groups,dc=example,dc=com` (objectClass groupOfNames, атрибут `cn`) отображаются на realm roles с тем же именем. Пользователи получают роли по членству в этих группах (member/DN).
+
+![ldap_5](./asset/task1/ldap_5.png)
+
+#### Синхронизация пользователей
+
+![ldap_6](./asset/task1/ldap_6.png)
+![ldap_7](./asset/task1/ldap_7.png)
+
+#### Авторизация под доменным пользователем
+
+![ldap_8](./asset/task1/ldap_8.png)
+![ldap_9](./asset/task1/ldap_9.png)
+
+### Настройка MFA
+
+
+
+### Добавление OAuth 2.0 от Яндекс ID
+
+
 ---
 
 ## Разработка сервиса отчётов
