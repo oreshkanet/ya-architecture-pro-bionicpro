@@ -51,7 +51,7 @@ services:
       KC_DB_USERNAME: keycloak_user
       KC_DB_PASSWORD: keycloak_password
       KC_TRANSACTION_RECOVERY_ENABLED: "true"
-      KC_LOG_LEVEL: INFO,org.keycloak.storage.ldap:DEBUG
+      KC_LOG_LEVEL: INFO,org.keycloak.broker.oidc:DEBUG
     command: 
       - start-dev
       - --import-realm
