@@ -1,4 +1,6 @@
 /postgres-keycloak-data
+/airwlow/dags/__*
+/postgres-data
 2024__yandex-architecture-sso.code-workspace
 tmp
 *.drawio.bkp
