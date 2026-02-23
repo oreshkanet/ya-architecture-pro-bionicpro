@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bionicpro-auth/internal/config"
+	"bionicpro-auth/internal/jwt"
 	"bionicpro-auth/internal/keycloak"
 	"bionicpro-auth/internal/session"
 
@@ -142,11 +143,13 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, _ := jwt.UsernameFromToken(tokens.AccessToken)
 	sessionID := uuid.New().String()
 	ttl := time.Duration(s.cfg.SessionMaxAge) * time.Second
 	expiresAt := time.Now().Add(time.Duration(tokens.ExpiresIn) * time.Second)
 
 	err = s.store.Set(r.Context(), sessionID, &session.SessionData{
+		UserID:       userID,
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: encryptedRefresh,
 		ExpiresAt:    expiresAt,
@@ -186,20 +189,20 @@ func (s *Server) handleSessionCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReportsProxy(w http.ResponseWriter, r *http.Request) {
-	token, _ := r.Context().Value("access_token").(string)
-	if token == "" {
+	username, _ := r.Context().Value("user_id").(string)
+	if username == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	targetURL := s.cfg.ReportsAPIURL + "/reports"
-	log.Printf("[out] GET %s (reports API)", targetURL)
+	log.Printf("[out] GET %s (reports API) username=%s", targetURL, username)
 	req, err := http.NewRequestWithContext(r.Context(), "GET", targetURL, nil)
 	if err != nil {
 		log.Printf("[out] GET %s - error: %v", targetURL, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-User-Id", username)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("[out] GET %s - error: %v", targetURL, err)
@@ -254,8 +257,10 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 		if err == nil && newSessionID != "" {
 			s.setSessionCookie(w, newSessionID)
 		}
-		r = r.WithContext(context.WithValue(r.Context(), "access_token", accessToken))
-		next.ServeHTTP(w, r)
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, "access_token", accessToken)
+		ctx = context.WithValue(ctx, "user_id", data.UserID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -273,6 +278,9 @@ func (s *Server) ensureValidAccessToken(ctx context.Context, data *session.Sessi
 	}
 	data.AccessToken = tokens.AccessToken
 	data.ExpiresAt = time.Now().Add(time.Duration(tokens.ExpiresIn) * time.Second)
+	if username, err := jwt.UsernameFromToken(tokens.AccessToken); err == nil && username != "" {
+		data.UserID = username
+	}
 	if tokens.RefreshToken != "" {
 		encryptedRefresh, err := session.EncryptRefreshToken(tokens.RefreshToken, s.cfg.EncryptionKey)
 		if err != nil {

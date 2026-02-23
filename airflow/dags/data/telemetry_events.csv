@@ -1,9 +1,9 @@
 user_id,device_id,event_type,value
-648801,device-001,usage_hours,2.5
-648801,device-001,usage_hours,1.0
-648821,device-002,usage_hours,3.0
-648821,device-002,usage_hours,0.5
-6488211,device-003,usage_hours,4.0
-6488214,device-004,usage_hours,2.0
-6488214,device-004,usage_hours,1.5
-6488219,device-005,usage_hours,1.0
+user1,device-001,usage_hours,2.5
+user1,device-001,usage_hours,1.0
+prothetic1,device-002,usage_hours,3.0
+prothetic1,device-002,usage_hours,0.5
+john.doe,device-003,usage_hours,4.0
+alex.johnson,device-004,usage_hours,2.0
+alex.johnson,device-004,usage_hours,1.5
+jane.smith,device-005,usage_hours,1.0

@@ -1,6 +1,0 @@
-user_id,full_name,email,period_start,period_end,usage_hours,session_count,avg_daily_use
-648801,Иван Петров,ivan.petrov@example.com,2025-01-01,2025-01-31,15.5,12,0.5
-648821,Мария Сидорова,maria.sidorova@example.com,2025-01-01,2025-01-31,22.0,18,0.71
-6488211,Алексей Козлов,alexey.kozlov@example.com,2025-01-01,2025-01-31,28.0,14,0.9
-6488214,Елена Новикова,elena.novikova@example.com,2025-01-01,2025-01-31,19.5,10,0.63
-6488219,Дмитрий Волков,dmitry.volkov@example.com,2025-01-01,2025-01-31,8.0,6,0.26

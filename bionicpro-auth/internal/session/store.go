@@ -10,8 +10,9 @@ import (
 )
 
 type SessionData struct {
+	UserID       string
 	AccessToken  string
-	RefreshToken string // хранится в зашифрованном виде
+	RefreshToken string
 	ExpiresAt    time.Time
 }
 
