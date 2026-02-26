@@ -223,15 +223,15 @@
       "builtIn": true,
       "authenticationExecutions": [
         {
-          "authenticator": "auth-username-password-form",
-          "requirement": "REQUIRED",
+          "authenticator": "idp-create-user-if-unique",
+          "requirement": "ALTERNATIVE",
           "priority": 10,
           "userSetupAllowed": false,
           "authenticatorFlow": false
         },
         {
-          "authenticator": "auth-otp-form",
-          "requirement": "CONDITIONAL",
+          "authenticator": "idp-auto-link",
+          "requirement": "ALTERNATIVE",
           "priority": 20,
           "userSetupAllowed": false,
           "authenticatorFlow": false
@@ -352,7 +352,7 @@
     {
       "username": "prothetic1",
       "enabled": true,
-      "email": "d.i.saygin@yandex.ru",
+      "email": "prothetic1@example.com",
       "firstName": "Prothetic",
       "lastName": "One",
       "credentials": [
@@ -417,6 +417,7 @@
       "webOrigins": [
         "http://localhost:3000",
         "http://localhost:8001",
+        "http://localhost:8002",
         "http://frontend:3000"
       ],
       "standardFlowEnabled": true,
@@ -568,20 +569,22 @@
       "linkOnly": false,
       "firstBrokerLoginFlowAlias": "first broker login",
       "config": {
-        "authorizationUrl": "https://oauth.yandex.ru/authorize",
-        "tokenUrl": "https://oauth.yandex.ru/token",
-        "userInfoUrl": "https://login.yandex.ru/info?format=json",
+        "authorizationUrl": "http://localhost:8002/authorize",
+        "tokenUrl": "http://proxy-yandex:8002/token",
+        "userInfoUrl": "http://proxy-yandex:8002/info?format=json",
         "clientAuthMethod": "client_secret_post",
         "clientId": "41bc024c606c4d6cbe7963e9a6624e5f",
-        "clientSecret": "0fc3c0ef1e924f41aa79c4b4eb82ed0a",
-        "defaultScope": "login:info",
+        "clientSecret": "2145e3539c48476d9955c04ab96fd9c8",
+        "defaultScope": "login:info login:email",
         "syncMode": "FORCE",
         "backchannelSupported": "false",
-        "validateSignature": "false",
+        "validateSignature": "true",
+        "useJwksUrl": "true",
+        "jwksUrl": "http://proxy-yandex:8002/.well-known/jwks.json",
+        "issuer": "http://proxy-yandex:8002",
         "acceptsPromptNoneForwardFromClient": "false",
         "guiOrder": "1",
         "hideOnLoginPage": "false",
-        "useJwksUrl": "false",
         "disableUserInfo": "false",
         "pkceEnabled": "false"
       }
@@ -630,7 +633,8 @@
       "identityProviderAlias": "yandex",
       "identityProviderMapper": "oidc-username-idp-mapper",
       "config": {
-        "syncMode": "FORCE"
+        "syncMode": "FORCE",
+        "template": "${CLAIM.login}"
       }
     },
     {

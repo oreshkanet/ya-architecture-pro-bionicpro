@@ -36,6 +36,14 @@ uid: alex.johnson
 mail: alex@example.com
 userPassword: password
 
+dn: uid=denis.saygin,ou=People,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Denis
+sn: Saygin
+uid: denis.saygin
+mail: d.i.saygin@yandex.ru
+userPassword: password
+
 # Роли
 dn: cn=user,ou=Groups,dc=example,dc=com
 objectClass: groupOfNames

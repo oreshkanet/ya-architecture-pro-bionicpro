@@ -18,6 +18,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const logPrefix = "[bionicpro-auth]"
+
 type Server struct {
 	cfg      *config.Config
 	store    session.Store
@@ -53,15 +55,21 @@ func (rl *responseLogger) Write(b []byte) (int, error) {
 func requestLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		reqID := middleware.GetReqID(r.Context())
+		if reqID == "" {
+			reqID = uuid.New().String()[:8]
+		}
 		wrapped := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(wrapped, r)
 		dur := time.Since(start)
-		log.Printf("[in] %s %s from %s - %d %dB in %v", r.Method, r.URL.RequestURI(), r.RemoteAddr, wrapped.status, wrapped.written, dur)
+		log.Printf("%s [req=%s] %s %s | from %s | %d %dB | %v",
+			logPrefix, reqID, r.Method, r.URL.RequestURI(), r.RemoteAddr, wrapped.status, wrapped.written, dur)
 	})
 }
 
 func (s *Server) ListenAndServe(addr string) error {
 	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
 	r.Use(requestLoggingMiddleware)
 	r.Use(middleware.Recoverer)
 	r.Use(s.corsMiddleware())
@@ -119,12 +127,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	q.Set("state", state)
 	u.RawQuery = q.Encode()
 
+	log.Printf("%s [login] redirect to Keycloak redirect_uri=%s state=%s", logPrefix, redirectURI, state)
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
 	if code == "" {
+		log.Printf("%s [callback] error=no_code state=%s", logPrefix, state)
 		http.Redirect(w, r, s.cfg.FrontendURL+"?error=no_code", http.StatusFound)
 		return
 	}
@@ -132,13 +143,14 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := s.keycloak.ExchangeCode(r.Context(), code, redirectURI)
 	if err != nil {
-		log.Printf("[auth] token exchange failed: %v", err)
+		log.Printf("%s [callback] token exchange failed: %v (state=%s)", logPrefix, err, state)
 		http.Redirect(w, r, s.cfg.FrontendURL+"?error=token_exchange", http.StatusFound)
 		return
 	}
 
 	encryptedRefresh, err := session.EncryptRefreshToken(tokens.RefreshToken, s.cfg.EncryptionKey)
 	if err != nil {
+		log.Printf("%s [callback] encrypt refresh token: %v", logPrefix, err)
 		http.Redirect(w, r, s.cfg.FrontendURL+"?error=encrypt", http.StatusFound)
 		return
 	}
@@ -155,11 +167,13 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:    expiresAt,
 	}, ttl)
 	if err != nil {
+		log.Printf("%s [callback] store session: %v user=%s", logPrefix, err, userID)
 		http.Redirect(w, r, s.cfg.FrontendURL+"?error=store", http.StatusFound)
 		return
 	}
 
 	s.setSessionCookie(w, sessionID)
+	log.Printf("%s [callback] success user=%s session=%s", logPrefix, userID, sessionID[:8])
 	http.Redirect(w, r, s.cfg.FrontendURL, http.StatusFound)
 }
 
@@ -167,6 +181,9 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(s.cfg.SessionCookieName)
 	if err == nil && cookie.Value != "" {
 		_ = s.store.Delete(r.Context(), cookie.Value)
+		log.Printf("%s [logout] session deleted", logPrefix)
+	} else {
+		log.Printf("%s [logout] no session cookie", logPrefix)
 	}
 	s.clearSessionCookie(w)
 	http.Redirect(w, r, s.cfg.FrontendURL, http.StatusFound)
@@ -175,42 +192,44 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSessionCheck(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(s.cfg.SessionCookieName)
 	if err != nil || cookie.Value == "" {
-		log.Printf("[session] cookie not defined")
+		log.Printf("%s [session/check] 401 cookie missing or empty", logPrefix)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	data, err := s.store.Get(r.Context(), cookie.Value)
 	if err != nil || data == nil {
-		log.Printf("[session] token not defined")
+		log.Printf("%s [session/check] 401 session not found or expired", logPrefix)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+	log.Printf("%s [session/check] 200 user=%s", logPrefix, data.UserID)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleReportsProxy(w http.ResponseWriter, r *http.Request) {
 	username, _ := r.Context().Value("user_id").(string)
 	if username == "" {
+		log.Printf("%s [reports] 401 no user_id in context", logPrefix)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	targetURL := s.cfg.ReportsAPIURL + "/reports"
-	log.Printf("[out] GET %s (reports API) username=%s", targetURL, username)
+	log.Printf("%s [reports] GET %s user=%s", logPrefix, targetURL, username)
 	req, err := http.NewRequestWithContext(r.Context(), "GET", targetURL, nil)
 	if err != nil {
-		log.Printf("[out] GET %s - error: %v", targetURL, err)
+		log.Printf("%s [reports] new request error: %v", logPrefix, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	req.Header.Set("X-User-Id", username)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("[out] GET %s - error: %v", targetURL, err)
+		log.Printf("%s [reports] upstream error: %v", logPrefix, err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
-	log.Printf("[out] GET %s - %d", targetURL, resp.StatusCode)
+	log.Printf("%s [reports] upstream %s -> %d", logPrefix, targetURL, resp.StatusCode)
 	for k, v := range resp.Header {
 		for _, vv := range v {
 			w.Header().Add(k, vv)
@@ -223,15 +242,18 @@ func (s *Server) handleReportsProxy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSessionValidate(w http.ResponseWriter, r *http.Request) {
 	cookie, _ := r.Cookie(s.cfg.SessionCookieName)
 	if cookie == nil || cookie.Value == "" {
+		log.Printf("%s [session/validate] 401 no cookie", logPrefix)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	newSessionID, _, err := s.store.Rotate(r.Context(), cookie.Value)
 	if err != nil || newSessionID == "" {
+		log.Printf("%s [session/validate] 401 rotate failed: %v", logPrefix, err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	s.setSessionCookie(w, newSessionID)
+	log.Printf("%s [session/validate] 200 session rotated", logPrefix)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -239,16 +261,19 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(s.cfg.SessionCookieName)
 		if err != nil || cookie.Value == "" {
+			log.Printf("%s [requireSession] 401 no cookie path=%s", logPrefix, r.URL.Path)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		data, err := s.store.Get(r.Context(), cookie.Value)
 		if err != nil || data == nil {
+			log.Printf("%s [requireSession] 401 session not found path=%s", logPrefix, r.URL.Path)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		accessToken, err := s.ensureValidAccessToken(r.Context(), data)
 		if err != nil {
+			log.Printf("%s [requireSession] 401 ensureValidAccessToken: %v path=%s", logPrefix, err, r.URL.Path)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -268,12 +293,15 @@ func (s *Server) ensureValidAccessToken(ctx context.Context, data *session.Sessi
 	if !data.ExpiresAt.IsZero() && time.Now().Before(data.ExpiresAt) {
 		return data.AccessToken, nil
 	}
+	log.Printf("%s [token] access expired, refreshing for user=%s", logPrefix, data.UserID)
 	refreshToken, err := session.DecryptRefreshToken(data.RefreshToken, s.cfg.EncryptionKey)
 	if err != nil {
+		log.Printf("%s [token] decrypt refresh: %v", logPrefix, err)
 		return "", err
 	}
 	tokens, err := s.keycloak.RefreshToken(ctx, refreshToken)
 	if err != nil {
+		log.Printf("%s [token] refresh failed: %v", logPrefix, err)
 		return "", err
 	}
 	data.AccessToken = tokens.AccessToken
@@ -288,6 +316,7 @@ func (s *Server) ensureValidAccessToken(ctx context.Context, data *session.Sessi
 		}
 		data.RefreshToken = encryptedRefresh
 	}
+	log.Printf("%s [token] refresh success user=%s expires_in=%d", logPrefix, data.UserID, tokens.ExpiresIn)
 	return data.AccessToken, nil
 }
 

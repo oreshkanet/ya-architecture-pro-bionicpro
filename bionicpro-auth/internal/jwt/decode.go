@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// UsernameFromToken извлекает claim "preferred_username" (Keycloak username) из access token JWT
 func UsernameFromToken(accessToken string) (string, error) {
 	parts := strings.Split(accessToken, ".")
 	if len(parts) != 3 {

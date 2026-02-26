@@ -1,8 +1,5 @@
-/postgres-keycloak-data
 /airwlow/dags/__*
-/postgres-data
+/data
 2024__yandex-architecture-sso.code-workspace
 tmp
 *.drawio.bkp
-ldap-config
-ldap-data
