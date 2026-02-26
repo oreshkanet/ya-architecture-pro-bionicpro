@@ -14,6 +14,7 @@
 - Поддержка внешних удостоверяющих служб через брокеринг.
 
 Диаграмма C4:
+[BionicPRO_C4_model](./diagram/BionicPRO_C4_model_task1_tobe.png)
 
 ![BionicPRO_C4_model](./diagram/BionicPRO_C4_model_task1_tobe.png)
 
@@ -202,8 +203,12 @@
 
 ### Архитектура
 
-[BionicPRO_C4_model_task2_tobe](./asset/diagram/BionicPRO_C4_model_task2_tobe.drawio)
-![BionicPRO_C4_model_task2_tobe](./asset/diagram/BionicPRO_C4_model_task2_tobe.png)
+В реализации сервиса Отчётов принято решение использовать BFF-подход, при котором сервис авторизации `BionicPRO-Auth` выступает в качестве gateway и проксирует запросы к `Reports-Backend`. Кроме того, `BionicPRO-Auth` получает id сессии от фронтенда, находит соответствие с токеном и добавляет его в авторизацию. 
+
+Диаграмма C4: 
+[BionicPRO_C4_model_task2_tobe](./diagram/BionicPRO_C4_model_task2_tobe.drawio)
+
+![BionicPRO_C4_model_task2_tobe](./diagram/BionicPRO_C4_model_task2_tobe.png)
 
 Компоненты:
 
