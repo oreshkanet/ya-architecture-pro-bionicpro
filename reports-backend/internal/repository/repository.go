@@ -3,10 +3,13 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"log"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+const repoLogPrefix = "[reports-backend][repository]"
 
 type ReportRow struct {
 	UserID       string     `json:"user_id"`
@@ -37,6 +40,7 @@ func New(dsn string) (*ReportRepository, error) {
 }
 
 func (r *ReportRepository) GetByUserID(ctx context.Context, userID string) (*ReportRow, error) {
+	log.Printf("%s GetByUserID user=%s", repoLogPrefix, userID)
 	row := r.db.QueryRowContext(ctx, `
 		SELECT user_id, full_name, email, registered_at,
 		       period_start, period_end,
@@ -61,11 +65,14 @@ func (r *ReportRepository) GetByUserID(ctx context.Context, userID string) (*Rep
 		&updAt,
 	)
 	if err == sql.ErrNoRows {
+		log.Printf("%s GetByUserID user=%s no rows", repoLogPrefix, userID)
 		return nil, nil
 	}
 	if err != nil {
+		log.Printf("%s GetByUserID user=%s error: %v", repoLogPrefix, userID, err)
 		return nil, err
 	}
+	log.Printf("%s GetByUserID user=%s ok", repoLogPrefix, userID)
 	if regAt.Valid {
 		rep.RegisteredAt = &regAt.Time
 	}
