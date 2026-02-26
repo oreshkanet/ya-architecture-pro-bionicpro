@@ -34,7 +34,7 @@ services:
       POSTGRES_USER: keycloak_user
       POSTGRES_PASSWORD: keycloak_password
     volumes:
-      - ./postgres-data/keycloak:/var/lib/postgresql/data
+      - ./data/postgres/keycloak:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
@@ -56,8 +56,8 @@ services:
       LDAP_READONLY_USER: "false"
     volumes:
       - ./ldap:/ldap-bootstrap:ro
-      - ./ldap/ldap-data:/var/lib/ldap
-      - ./ldap/ldap-config:/etc/ldap/slapd.d
+      - ./data/ldap/data:/var/lib/ldap
+      - ./data/ldap/config:/etc/ldap/slapd.d
     ports:
       - "389:389"
       - "636:636"
@@ -79,6 +79,9 @@ services:
       KC_DB_PASSWORD: keycloak_password
       KC_TRANSACTION_RECOVERY_ENABLED: "true"
       KC_LOG_LEVEL: INFO,org.keycloak.broker.oidc:DEBUG
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "8080"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
     command: 
       - start-dev
       - --import-realm
@@ -91,6 +94,8 @@ services:
         condition: service_healthy
       openldap:
         condition: service_healthy
+      proxy-yandex:
+        condition: service_started
 
   bionicpro-auth:
     build:
@@ -116,6 +121,21 @@ services:
       - keycloak
     restart: on-failure
 
+  proxy-yandex:
+    build:
+      context: ./proxy-yandex
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: "8002"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   crm_db:
     image: postgres:14
     environment:
@@ -123,7 +143,7 @@ services:
       POSTGRES_USER: crm_user
       POSTGRES_PASSWORD: crm_password
     volumes:
-      - ./postgres-data/crm:/var/lib/postgresql/data
+      - ./data/postgres/crm:/var/lib/postgresql/data
     ports:
       - "5434:5432"
     healthcheck:
@@ -139,7 +159,7 @@ services:
       POSTGRES_USER: telemetry_user
       POSTGRES_PASSWORD: telemetry_password
     volumes:
-      - ./postgres-data/telemetry:/var/lib/postgresql/data
+      - ./data/postgres/telemetry:/var/lib/postgresql/data
     ports:
       - "5435:5432"
     healthcheck:
@@ -155,7 +175,7 @@ services:
       POSTGRES_USER: olap_user
       POSTGRES_PASSWORD: olap_password
     volumes:
-      - ./postgres-data/olap:/var/lib/postgresql/data
+      - ./data/postgres/olap:/var/lib/postgresql/data
     ports:
       - "5436:5432"
     healthcheck:
@@ -163,30 +183,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-#  airflow:
-#    build:
-#      context: ./airflow
-#      dockerfile: Dockerfile
-#    environment:
-#      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
-#      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db:5432/airflow
-#      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-#      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
-#      AIRFLOW_CONN_CRM_POSTGRES: "postgres://crm_user:crm_password@crm_db:5432/crm_db"
-#      AIRFLOW_CONN_OLAP_POSTGRES: "postgres://olap_user:olap_password@olap_db:5432/olap_db"
-#    volumes:
-#      - ./airflow/dags:/opt/airflow/dags:ro
-#    depends_on:
-#      airflow_db:
-#        condition: service_healthy
-#      crm_db:
-#        condition: service_healthy
-#      olap_db:
-#        condition: service_healthy
-#    ports:
-#      - "8081:8080"
-#    command: ["standalone"]
 
   airflow-webserver:
     <<: *airflow-common
@@ -214,7 +210,7 @@ services:
       airflow-webserver:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8081/health || exit 1" ]
+      test: [ "CMD-SHELL", "curl -f http://airflow-webserver:8080/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -262,8 +258,7 @@ services:
   airflow-db:
     image: postgres:14.0
     volumes:
-      - ./postgres-data/airflow:/var/lib/postgresql/data
-      - ./db/init-db.sql:/docker-entrypoint-initdb.d/db.sql
+      - ./data/postgres/airflow:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: airflow
       POSTGRES_USER: airflow
@@ -285,22 +280,22 @@ services:
       start_period: 5s
     restart: always
 
-#  reports-backend:
-#    build:
-#      context: ./reports-backend
-#      dockerfile: Dockerfile
-#    ports:
-#      - "8000:8000"
-#    environment:
-#      PORT: "8000"
-#      OLAP_DSN: "postgres://olap_user:olap_password@olap_db:5432/olap_db?sslmode=disable"
-#      KEYCLOAK_URL: http://keycloak:8080
-#      KEYCLOAK_REALM: reports-realm
-#    depends_on:
-#      olap_db:
-#        condition: service_healthy
-#      keycloak:
-#        condition: service_started
+  reports-backend:
+    build:
+      context: ./reports-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      OLAP_DSN: "postgres://olap_user:olap_password@olap_db:5432/olap_db?sslmode=disable"
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: reports-realm
+    depends_on:
+      olap_db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
 
   frontend:
     build:

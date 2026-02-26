@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS customers (
 
 CREATE TABLE IF NOT EXISTS orders (
     id                  SERIAL PRIMARY KEY,
-    order_number    VARCHAR(255) NOT NULL UNIQUE,
-    total           NUMERIC(10,2),
-    discount           NUMERIC(10,2),
-    buyer_id               VARCHAR(255),
+    order_number        VARCHAR(255) NOT NULL UNIQUE,
+    total               NUMERIC(10,2),
+    discount            NUMERIC(10,2),
+    buyer_id            VARCHAR(255),
     registered_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
