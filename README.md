@@ -161,14 +161,129 @@
 
 ### Добавление OAuth 2.0 от Яндекс ID
 
+В личном кабинете [https://oauth.yandex.ru/](https://oauth.yandex.ru/) зарегистрировано новое приложения для подключения аутентификации.
+![yaid_1](./asset/task1/yaid_1.png)
+
+![yaid_2](./asset/task1/yaid_2.png)
+
+Для подключения к Keycloak в секцию `identityProviders` добавлена настройка для Яндекс ID и маппинг полей, а в секцию `authenticationFlows` добавлен новый флоу `first broker login`, а в основной флоу добавлен альтернативный шаг `identity-provider-redirector`.
+
+В итоге, на форме авторизации появилась кнопка авторизации Yandex ID
+![yaid_3](./asset/task1/yaid_3.png)
+
+Дополнительное предупреждение (сервис в Яндекс не проходил верификацию)
+![yaid_4](./asset/task1/yaid_4.png)
+
+Форма авторизации в Яндекс и запрашиваемые права:
+![yaid_5](./asset/task1/yaid_5.png)
+
+После авторизации для пользователя в Keycloak автоматически добавляется новая связь IdP:
+![yaid_6](./asset/task1/yaid_6.png)
+
+### Прокси-сервис для Яндекс ID
+
+Напрямую Яндекс ID не захотел подключаться к Keycloak из-за различий в протоколах обмена. Например:
+
+- `/authorize` - флоу в Яндекс падал при наличии в scoupe значения `openid`, поэтому в прокси реализовано "вырезание" этого значения
+- `/token` - Яндекс отдаёт значение немного не в том формате, который ждёт Keycloak.
+- `/info` - в JSON от Яндекс нехватает идентификатора пользователя (поле `sub`)
+
+Поэтому было принято решение реализовать промежуточный прокси-сервис, который "подгоняет" форматы запросов и ответов. 
+
+Пример логов сервиса:
+![yaid_7](./asset/task1/yaid_7.png)
+![yaid_8](./asset/task1/yaid_8.png)
 
 ---
 
 ## Разработка сервиса отчётов
 
+Реализован отдельный сервис отчётов: ETL (Airflow) формирует витрину в OLAP, бэкенд на Go отдаёт отчёт по пользователю через API. Доступ только к своему отчёту (по JWT `sub`).
 
+### Архитектура
 
+[BionicPRO_C4_model_task2_tobe](./asset/diagram/BionicPRO_C4_model_task2_tobe.drawio)
+![BionicPRO_C4_model_task2_tobe](./asset/diagram/BionicPRO_C4_model_task2_tobe.png)
 
+Компоненты:
+
+1. **Источники данных**
+   - **CRM (PostgreSQL)** — данные о клиентах (`keycloak_user_id`, имя, контакты, дата регистрации), данные о заказах (номер, сумма, скидка, покупатель, дата регистрации)
+   - **Телеметрия** — события с датчиков протезов: использование по дням, часы работы, метрики.
+
+2. **ETL (Apache Airflow)**
+   - **Extract**: чтение из CRM (клиенты) и из источников телеметрии (события по устройствам/пользователям).
+   - **Transform**: объединение по пользователю, агрегация телеметрии в разрезе клиента (суммы, средние, периоды).
+   - **Load**: запись в OLAP-БД в таблицу витрины `report_mart`.
+
+3. **OLAP-БД (PostgreSQL)**
+   - Витрина **report_mart**: одна или несколько записей на пользователя (например, по периодам), индексы по `user_id` для быстрого доступа по пользователю.
+   - Данные пересчитываются по расписанию DAG, без тяжёлых вычислений в момент запроса.
+
+4. **Reports API (Go)**
+   - Эндпоинт `GET /reports`: по JWT определяет пользователя (`sub`), запрашивает из витрины только данные этого пользователя и возвращает отчёт (JSON или файл).
+
+5. **Доступ**
+   - Запрос к отчёту идёт через bionicpro-auth с сессионной cookie; auth подставляет Bearer и проксирует на Reports API.
+   - Reports API проверяет JWT и отдаёт отчёт только для `sub` из токена (доступ только к своему отчёту).
+
+### Airflow DAG и витрина
+
+Для инициализации баз данных используются DAG с ограничением выполнения "только один раз":
+
+- **[dag_crm_init](/airflow/dags/dag_crm_init.py)** - использует [crm_init.sql](/airflow/dags/sql/crm_init.sql) для инициализации структуры базы и [customers.csv](/airflow/dags/data/customers.csv), [orders.csv](/airflow/dags/data/orders.csv) для загрузки первоначальных данных.
+   ![db_1](/asset/task2/db_1.png)
+   ![db_2](/asset/task2/db_2.png)
+- **[dag_telemetry_init](/airflow/dags/dag_telemetry_init.py)** - использует [crm_init.sql](/airflow/dags/sql/telemetry_init.sql) для инициализации структуры базы и [telemetry_events.csv](/airflow/dags/data/telemetry_events.csv), для загрузки первоначальных данных
+   ![db_3](/asset/task2/db_3.png)
+- **[dag_olap_init](/airflow/dags/dag_olap_init.py)** - использует [olap_init.sql](/airflow/dags/sql/olap_init.sql) для инициализации структуры базы.
+   ![db_4](/asset/task2/db_4.png)
+
+Основной ETL реализован в DAG `reports_etl_dag`:
+- **DAG:** [reports_etl_dag](/airflow/dags/reports_etl_dag.py) — объединяет клиентов из CRM и агрегаты телеметрии, пишет в `report_mart`.
+- **Расписание:** каждые 10 минут (`schedule_interval="*/10 * * * *"`).
+- **Подключения Airflow:** `crm_postgres`, `olap_postgres` (задаются через `AIRFLOW_CONN_CRM_POSTGRES`, `AIRFLOW_CONN_OLAP_POSTGRES` в `docker-compose.yaml`).
+- **Структура витрины:** `user_id` (PK), данные из CRM, период, часы использования, число сессий, среднее по дням, `updated_at`.
+
+Список DAG в UI AirFlow:
+![dag_1](/asset/task2/dag_1.png)
+
+Настроенные подключения к базам данных:
+![dag_2](/asset/task2/dag_2.png)
+
+Инициализация БД с использованием DAG на примере CRM:
+![dag_3](/asset/task2/dag_3.png)
+
+Выполнение DAG с основным ETL:
+![dag_4](/asset/task2/dag_4.png)
+![dag_5](/asset/task2/dag_5.png)
+
+Записи в БД Olap после выполнения DAG ETL:
+![dag_6](/asset/task2/dag_6.png)
+
+### Бэкенд API (Go)
+
+В качестве бэкенда для формирования отчётов реализован сервис на Go ([reports-backend](/reports-backend/main.go)):
+
+- **Сервис:** `reports-backend`, порт 8000.
+- **Эндпоинт:** `GET /reports` — возвращает JSON-отчёт по текущему пользователю из витрины (без сложных вычислений в реальном времени).
+- **Сборка:** добавлен в общий docker-compose.yaml, для сборки - `docker compose build reports-backend`
+
+Логи сервиса Reports-backend:
+![report_1](/asset/task2/report_1.png)
+
+### Ограничение доступа
+
+Отчёт выдаётся только для пользователя, чей JWT передан в `Authorization: Bearer <token>`. `user_id` в запросе к БД берётся только из поля `sub` токена; параметр пользователя в URL не используется.
+
+### UI
+
+На странице отчётов (`ReportPage`) добавлена кнопка **«Получить отчёт»**, вызывающая эндпоинт генерации отчёта через auth-прокси (`GET ${REACT_APP_AUTH_URL}/api/reports` с cookie).
+
+После ответа отображаются период, часы использования, число сессий и дата обновления отчёта.
+
+Вывод отчёта в UI пользователю:
+![report_2](/asset/task2/report_2.png)
 
 ---
 
