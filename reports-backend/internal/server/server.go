@@ -2,19 +2,29 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"reports-backend/internal/auth"
 	"reports-backend/internal/config"
+	"reports-backend/internal/report"
+	"reports-backend/internal/reporttoken"
 	"reports-backend/internal/repository"
+	"reports-backend/internal/storage"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 const logPrefix = "[reports-backend]"
+
+func reportS3Key(userID, periodStart, periodEnd string) string {
+	return fmt.Sprintf("reports/%s/%s_%s.html", storage.UserIDHashPrefix(userID), periodStart, periodEnd)
+}
 
 type responseRecorder struct {
 	http.ResponseWriter
@@ -53,8 +63,9 @@ func requestLogMiddleware(next http.Handler) http.Handler {
 }
 
 type Server struct {
-	cfg  *config.Config
-	repo *repository.ReportRepository
+	cfg     *config.Config
+	repo    *repository.ReportRepository
+	storage *storage.S3Storage
 }
 
 func New(cfg *config.Config) (*Server, error) {
@@ -64,7 +75,12 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 	log.Printf("%s repository connected", logPrefix)
-	return &Server{cfg: cfg, repo: repo}, nil
+	s3Storage, err := storage.NewS3(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3ReportTTLDays)
+	if err != nil {
+		log.Printf("%s S3 storage init: %v", logPrefix, err)
+		return nil, err
+	}
+	return &Server{cfg: cfg, repo: repo, storage: s3Storage}, nil
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -73,14 +89,12 @@ func (s *Server) ListenAndServe(addr string) error {
 	r.Use(requestLogMiddleware)
 	r.Use(middleware.Recoverer)
 
-	// GET /reports — вызывается только bionicpro-auth; в заголовке передаётся ID пользователя из сессии (токен на клиент не отдаётся).
 	r.With(s.requireUserID).Get("/reports", s.handleGetReport)
+	r.With(s.requireUserID).Get("/reports/serve", s.handleServeReport)
 
 	return http.ListenAndServe(addr, r)
 }
 
-// requireUserID: запрос приходит от auth-сервиса с заголовком X-User-Id (auth уже проверил сессию по cookie).
-// Фильтрация данных — только по этому ID.
 func (s *Server) requireUserID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Header.Get("X-User-Id")
@@ -103,22 +117,99 @@ func (s *Server) handleGetReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("%s [reports] GetByUserID user=%s", logPrefix, userID)
-	report, err := s.repo.GetByUserID(r.Context(), userID)
+	ctx := r.Context()
+
+	// Период выбираем из БД (лёгкий запрос) - период для ключа S3. В целом указание периода можно вынести в UI пользователя.
+	periodStart, periodEnd, err := s.repo.GetPeriodByUserID(ctx, userID)
 	if err != nil {
-		log.Printf("%s [reports] GetByUserID error user=%s: %v", logPrefix, userID, err)
+		log.Printf("%s [reports] GetPeriodByUserID error user=%s: %v", logPrefix, userID, err)
 		http.Error(w, "failed to get report", http.StatusInternalServerError)
 		return
 	}
-	if report == nil {
+	if periodStart == "" || periodEnd == "" {
 		log.Printf("%s [reports] not found user=%s", logPrefix, userID)
 		http.Error(w, "report not found", http.StatusNotFound)
 		return
 	}
 
-	log.Printf("%s [reports] 200 user=%s period=%s..%s", logPrefix, userID, report.PeriodStart, report.PeriodEnd)
+	key := reportS3Key(userID, periodStart, periodEnd)
+
+	// Проверка наличия отчёта в S3
+	exists, err := s.storage.Exists(ctx, key)
+	if err != nil {
+		log.Printf("%s [reports] S3 Exists error user=%s: %v", logPrefix, userID, err)
+		http.Error(w, "failed to check report", http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		reportRow, err := s.repo.GetByUserID(ctx, userID)
+		if err != nil {
+			log.Printf("%s [reports] GetByUserID error user=%s: %v", logPrefix, userID, err)
+			http.Error(w, "failed to get report", http.StatusInternalServerError)
+			return
+		}
+		if reportRow == nil {
+			http.Error(w, "report not found", http.StatusNotFound)
+			return
+		}
+		htmlBody := report.RenderHTML(reportRow)
+		if err := s.storage.Put(ctx, key, []byte(htmlBody), "text/html; charset=utf-8"); err != nil {
+			log.Printf("%s [reports] S3 Put error user=%s: %v", logPrefix, userID, err)
+			http.Error(w, "failed to save report", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("%s [reports] generated and saved to S3 user=%s key=%s", logPrefix, userID, key)
+	}
+
+	// Формирование защищённой ссылки на отчёт
+	tok := reporttoken.Sign(s.cfg.ReportTokenSecret, reporttoken.Payload{
+		UserID:      userID,
+		PeriodStart: periodStart,
+		PeriodEnd:   periodEnd,
+	}, s.cfg.ReportTokenTTL)
+	baseURL := s.cfg.ReportServeBaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost:8001/api/reports/serve"
+	}
+	reportURL := baseURL + "?token=" + url.QueryEscape(tok)
+	resp := map[string]string{"report_url": reportURL}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(report); err != nil {
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("%s [reports] encode error: %v", logPrefix, err)
 	}
+}
+
+func (s *Server) handleServeReport(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "missing token", http.StatusBadRequest)
+		return
+	}
+	payload, err := reporttoken.Verify(s.cfg.ReportTokenSecret, token)
+	if err != nil {
+		log.Printf("%s [serve] token verify: %v", logPrefix, err)
+		http.Error(w, "invalid or expired token", http.StatusForbidden)
+		return
+	}
+	if payload.UserID != userID {
+		log.Printf("%s [serve] user mismatch token_user=%s header_user=%s", logPrefix, payload.UserID, userID)
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	key := reportS3Key(payload.UserID, payload.PeriodStart, payload.PeriodEnd)
+	body, err := s.storage.Get(r.Context(), key)
+	if err != nil {
+		log.Printf("%s [serve] S3 Get key=%s: %v", logPrefix, key, err)
+		http.Error(w, "report not found", http.StatusNotFound)
+		return
+	}
+	defer body.Close()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	io.Copy(w, body)
 }

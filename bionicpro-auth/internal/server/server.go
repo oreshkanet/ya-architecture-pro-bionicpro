@@ -84,6 +84,7 @@ func (s *Server) ListenAndServe(addr string) error {
 		r.Use(s.requireSession)
 		r.Get("/session/validate", s.handleSessionValidate)
 		r.Get("/api/reports", s.handleReportsProxy)
+		r.Get("/api/reports/serve", s.handleReportsServeProxy)
 	})
 
 	return http.ListenAndServe(addr, r)
@@ -230,6 +231,42 @@ func (s *Server) handleReportsProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	log.Printf("%s [reports] upstream %s -> %d", logPrefix, targetURL, resp.StatusCode)
+	for k, v := range resp.Header {
+		for _, vv := range v {
+			w.Header().Add(k, vv)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
+func (s *Server) handleReportsServeProxy(w http.ResponseWriter, r *http.Request) {
+	username, _ := r.Context().Value("user_id").(string)
+	if username == "" {
+		log.Printf("%s [reports/serve] 401 no user_id in context", logPrefix)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	targetURL := s.cfg.ReportsAPIURL + "/reports/serve"
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+	log.Printf("%s [reports/serve] GET %s user=%s", logPrefix, targetURL, username)
+	req, err := http.NewRequestWithContext(r.Context(), "GET", targetURL, nil)
+	if err != nil {
+		log.Printf("%s [reports/serve] new request error: %v", logPrefix, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("X-User-Id", username)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("%s [reports/serve] upstream error: %v", logPrefix, err)
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("%s [reports/serve] upstream -> %d", logPrefix, resp.StatusCode)
 	for k, v := range resp.Header {
 		for _, vv := range v {
 			w.Header().Add(k, vv)

@@ -13,11 +13,15 @@ export interface ReportData {
   updated_at: string;
 }
 
+export interface ReportResponse {
+  report_url: string;
+}
+
 const ReportPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [report, setReport] = useState<ReportData | null>(null);
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
 
   const authUrl = process.env.REACT_APP_AUTH_URL || 'http://localhost:8001';
 
@@ -39,7 +43,7 @@ const ReportPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      setReport(null);
+      setReportUrl(null);
 
       const response = await fetch(`${authUrl}/api/reports`, {
         credentials: 'include',
@@ -50,8 +54,8 @@ const ReportPage: React.FC = () => {
         throw new Error(text || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data: ReportData = await response.json();
-      setReport(data);
+      const data: ReportResponse = await response.json();
+      setReportUrl(data.report_url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -108,16 +112,24 @@ const ReportPage: React.FC = () => {
           </div>
         )}
 
-        {report && (
+        {reportUrl && (
           <div className="mt-6 p-4 bg-gray-50 rounded border text-left">
             <h2 className="text-lg font-semibold mb-3">Ваш отчёт</h2>
-            <dl className="grid grid-cols-1 gap-2 text-sm">
-              <div><span className="font-medium">Период:</span> {report.period_start} — {report.period_end}</div>
-              <div><span className="font-medium">Часы использования:</span> {report.usage_hours}</div>
-              <div><span className="font-medium">Сессий:</span> {report.session_count}</div>
-              <div><span className="font-medium">Среднее в день:</span> {report.avg_daily_use} ч</div>
-              <div><span className="font-medium">Обновлено:</span> {new Date(report.updated_at).toLocaleString()}</div>
-            </dl>
+            <p className="mb-3 text-sm text-gray-600">Отчёт сформирован и доступен по ссылке.</p>
+            <a
+              href={reportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Открыть отчёт в новой вкладке
+            </a>
+            <iframe
+              title="Отчёт"
+              src={reportUrl}
+              className="mt-4 w-full border rounded min-h-[400px]"
+              sandbox="allow-same-origin"
+            />
           </div>
         )}
       </div>

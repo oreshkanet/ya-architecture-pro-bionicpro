@@ -39,6 +39,22 @@ func New(dsn string) (*ReportRepository, error) {
 	return &ReportRepository{db: db}, nil
 }
 
+func (r *ReportRepository) GetPeriodByUserID(ctx context.Context, userID string) (periodStart, periodEnd string, err error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT period_start, period_end
+		FROM report_mart
+		WHERE user_id = $1
+	`, userID)
+	var start, end time.Time
+	if err := row.Scan(&start, &end); err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", nil
+		}
+		return "", "", err
+	}
+	return start.Format("2006-01-02"), end.Format("2006-01-02"), nil
+}
+
 func (r *ReportRepository) GetByUserID(ctx context.Context, userID string) (*ReportRow, error) {
 	log.Printf("%s GetByUserID user=%s", repoLogPrefix, userID)
 	row := r.db.QueryRowContext(ctx, `
