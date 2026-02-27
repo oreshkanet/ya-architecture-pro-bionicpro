@@ -115,7 +115,7 @@ const ReportPage: React.FC = () => {
         {reportUrl && (
           <div className="mt-6 p-4 bg-gray-50 rounded border text-left">
             <h2 className="text-lg font-semibold mb-3">Ваш отчёт</h2>
-            <p className="mb-3 text-sm text-gray-600">Отчёт сформирован и доступен по ссылке.</p>
+            <p className="mb-3 text-sm text-gray-600">Отчёт сформирован и доступен по ссылке. Ваша ссылка защищена и действует ограниченное время.</p>
             <a
               href={reportUrl}
               target="_blank"
