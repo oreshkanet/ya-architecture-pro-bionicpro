@@ -10,3 +10,10 @@ CREATE TABLE IF NOT EXISTS telemetry_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_telemetry_user_created ON telemetry_events(user_id, created_at);
+
+-- CDC: полная строка при UPDATE/DELETE для Debezium
+ALTER TABLE telemetry_events REPLICA IDENTITY FULL;
+
+-- Публикация для Change Data Capture (Debezium)
+DROP PUBLICATION IF EXISTS dbz_telemetry;
+CREATE PUBLICATION dbz_telemetry FOR TABLE telemetry_events;
