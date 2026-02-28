@@ -77,7 +77,7 @@ check_status() {
 
 wait_for_connect
 
-# Коннектор CRM (customers, orders). Публикация dbz_crm должна существовать в БД CRM (DAG dag_crm_init).
+# Коннектор CRM (customers, orders). Публикация dbz_crm создаётся при инициализации БД (init-db/crm).
 register_connector "crm-connector" '{
   "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
   "database.hostname": "crm_db",
@@ -92,7 +92,7 @@ register_connector "crm-connector" '{
   "table.include.list": "public.customers,public.orders"
 }'
 
-# Коннектор Телеметрии. Публикация dbz_telemetry должна существовать в БД телеметрии (DAG dag_telemetry_init).
+# Коннектор Телеметрии. Публикация dbz_telemetry создаётся при инициализации БД (init-db/telemetry).
 register_connector "telemetry-connector" '{
   "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
   "database.hostname": "telemetry_db",

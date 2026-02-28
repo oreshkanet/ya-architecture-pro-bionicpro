@@ -1,6 +1,0 @@
-id,order_number,total,discount,buyer_id
-1,12345,1000,100,user1
-2,12346,500,20,prothetic1
-3,12347,700,10,john.doe
-4,12348,200,0,jane.smith
-5,12349,3000,100,prothetic2

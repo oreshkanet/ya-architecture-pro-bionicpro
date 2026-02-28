@@ -1,4 +1,3 @@
-
 -- Телеметрия: события с датчиков протезов по пользователям
 CREATE TABLE IF NOT EXISTS telemetry_events (
     id          BIGSERIAL PRIMARY KEY,

@@ -1,31 +1,5 @@
 # version: '3.8'
 
-x-airflow-common: &airflow-common
-  build:
-    context: ./airflow
-    dockerfile: Dockerfile
-  environment: &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
-    AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    AIRFLOW__WEBSERVER__SECRET_KEY: 'your_airflow_webserver_sec_key'
-    _PIP_ADDITIONAL_REQUIREMENTS: ''
-    AIRFLOW_INPUT_DIR: '/opt/airflow/dag-inputs'
-  volumes:
-    - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/dags/sql:/opt/airflow/dags/sql
-    - ./airflow/requirements.txt:/opt/airflow/requirements.txt
-    - ./airflow/data:/opt/airflow/sample_files
-  user: "${AIRFLOW_UID:-50000}:0"
-  depends_on: &airflow-common-depends-on
-    postgres:
-      condition: service_healthy
-
 services:
   keycloak_db:
     image: postgres:14
@@ -144,6 +118,7 @@ services:
       POSTGRES_PASSWORD: crm_password
     command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=8"]
     volumes:
+      - ./init-db/crm:/docker-entrypoint-initdb.d:ro
       - ./data/postgres/crm:/var/lib/postgresql/data
     ports:
       - "5434:5432"
@@ -161,6 +136,7 @@ services:
       POSTGRES_PASSWORD: telemetry_password
     command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=8"]
     volumes:
+      - ./init-db/telemetry:/docker-entrypoint-initdb.d:ro
       - ./data/postgres/telemetry:/var/lib/postgresql/data
     ports:
       - "5435:5432"
@@ -326,102 +302,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  airflow-webserver:
-    <<: *airflow-common
-
-    ports:
-      - "8081:8080"
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-    command: webserver
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8081/health || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  airflow-scheduler:
-    <<: *airflow-common
-    command: scheduler
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-      airflow-webserver:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://airflow-webserver:8080/health || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  airflow-triggerer:
-    <<: *airflow-common
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-    command: bash -c "airflow triggerer"
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - airflow jobs check --job-type TriggererJob --hostname localhost
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-
-  airflow-cli:
-    <<: *airflow-common
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-    profiles:
-      - debug
-    command:
-      - bash
-      - -c
-      - airflow
-
-  airflow-init:
-    <<: *airflow-common
-    depends_on:
-      airflow-db:
-        condition: service_healthy
-    command: >
-      bash -c " airflow db init && airflow users create \ --username admin \ --firstname admin \ --lastname admin \ --role Admin \ --email admin@sample.ru \ --password admin 
-      
-      "
-
-  airflow-db:
-    image: postgres:14.0
-    volumes:
-      - ./data/postgres/airflow:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: airflow
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-    logging:
-      options:
-        max-size: 10m
-        max-file: "3"
-    ports:
-      - "5437:5432"
-    healthcheck:
-      test:
-        - CMD
-        - pg_isready
-        - -U
-        - airflow
-      interval: 10s
-      retries: 5
-      start_period: 5s
-    restart: always
 
   reports-backend:
     build:
