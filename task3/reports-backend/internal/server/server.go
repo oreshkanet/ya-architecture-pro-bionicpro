@@ -69,7 +69,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config) (*Server, error) {
-	repo, err := repository.New(cfg.ClickHouseDSN)
+	repo, err := repository.New(cfg.OLAPDSN)
 	if err != nil {
 		log.Printf("%s repository init: %v", logPrefix, err)
 		return nil, err

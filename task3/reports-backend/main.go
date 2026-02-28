@@ -17,11 +17,11 @@ func main() {
 		log.Fatalf("[reports-backend] config: %v", err)
 	}
 	// Логируем DSN без пароля
-	dsnForLog := cfg.ClickHouseDSN
+	dsnForLog := cfg.OLAPDSN
 	if idx := strings.Index(dsnForLog, "@"); idx > 0 {
 		dsnForLog = "***@" + dsnForLog[idx+1:]
 	}
-	log.Printf("[reports-backend] config: PORT=%s CLICKHOUSE_DSN=%s", cfg.Port, dsnForLog)
+	log.Printf("[reports-backend] config: PORT=%s OLAP_DSN=%s", cfg.Port, dsnForLog)
 
 	srv, err := server.New(cfg)
 	if err != nil {
