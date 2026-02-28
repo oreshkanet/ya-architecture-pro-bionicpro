@@ -207,6 +207,26 @@ services:
       retries: 5
       start_period: 20s
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8084:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://debezium-connect:8083
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   debezium-connect:
     image: quay.io/debezium/connect:2.4
     depends_on:
@@ -255,7 +275,7 @@ services:
         condition: service_healthy
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "9090:9000"
     volumes:
       - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
       - clickhouse_data:/var/lib/clickhouse
@@ -390,7 +410,7 @@ services:
       - "8000:8000"
     environment:
       PORT: "8000"
-      CLICKHOUSE_DSN: "clickhouse://default@clickhouse:9000/reports"
+      CLICKHOUSE_DSN: "clickhouse://default@clickhouse:9090/reports"
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: reports-realm
       S3_ENDPOINT: http://minio:9000
