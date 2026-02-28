@@ -1,0 +1,9 @@
+user_id,device_id,event_type,value
+user1,device-001,usage_hours,2.5
+user1,device-001,usage_hours,1.0
+prothetic1,device-002,usage_hours,3.0
+prothetic1,device-002,usage_hours,0.5
+john.doe,device-003,usage_hours,4.0
+alex.johnson,device-004,usage_hours,2.0
+alex.johnson,device-004,usage_hours,1.5
+jane.smith,device-005,usage_hours,1.0

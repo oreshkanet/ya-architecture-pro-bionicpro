@@ -1,6 +1,7 @@
 /airwlow/dags/__*
 /task4/data
 /task3/data
+/task2/data
 2024__yandex-architecture-sso.code-workspace
 tmp
 *.drawio.bkp

@@ -236,46 +236,46 @@
 
 Для инициализации баз данных используются DAG с ограничением выполнения "только один раз":
 
-- **[dag_crm_init](/airflow/dags/dag_crm_init.py)** - использует [crm_init.sql](/airflow/dags/sql/crm_init.sql) для инициализации структуры базы и [customers.csv](/airflow/dags/data/customers.csv), [orders.csv](/airflow/dags/data/orders.csv) для загрузки первоначальных данных.
-   ![db_1](/asset/task2/db_1.png)
-   ![db_2](/asset/task2/db_2.png)
-- **[dag_telemetry_init](/airflow/dags/dag_telemetry_init.py)** - использует [crm_init.sql](/airflow/dags/sql/telemetry_init.sql) для инициализации структуры базы и [telemetry_events.csv](/airflow/dags/data/telemetry_events.csv), для загрузки первоначальных данных
-   ![db_3](/asset/task2/db_3.png)
-- **[dag_olap_init](/airflow/dags/dag_olap_init.py)** - использует [olap_init.sql](/airflow/dags/sql/olap_init.sql) для инициализации структуры базы.
-   ![db_4](/asset/task2/db_4.png)
+- **[dag_crm_init](/task2/airflow/dags/dag_crm_init.py)** - использует [crm_init.sql](/task2/airflow/dags/sql/crm_init.sql) для инициализации структуры базы и [customers.csv](/task2/airflow/dags/data/customers.csv), [orders.csv](/task2/airflow/dags/data/orders.csv) для загрузки первоначальных данных.
+   ![db_1](/task2/asset/db_1.png)
+   ![db_2](/task2/asset/db_2.png)
+- **[dag_telemetry_init](/task2/airflow/dags/dag_telemetry_init.py)** - использует [crm_init.sql](/task2/airflow/dags/sql/telemetry_init.sql) для инициализации структуры базы и [telemetry_events.csv](/airflow/dags/data/telemetry_events.csv), для загрузки первоначальных данных
+   ![db_3](/task2/asset/db_3.png)
+- **[dag_olap_init](/task2/airflow/dags/dag_olap_init.py)** - использует [olap_init.sql](/task2/airflow/dags/sql/olap_init.sql) для инициализации структуры базы.
+   ![db_4](/task2/asset/db_4.png)
 
 Основной ETL реализован в DAG `reports_etl_dag`:
-- **DAG:** [reports_etl_dag](/airflow/dags/reports_etl_dag.py) — объединяет клиентов из CRM и агрегаты телеметрии, пишет в `report_mart`.
+- **DAG:** [reports_etl_dag](/task2/airflow/dags/reports_etl_dag.py) — объединяет клиентов из CRM и агрегаты телеметрии, пишет в `report_mart`.
 - **Расписание:** каждые 10 минут (`schedule_interval="*/10 * * * *"`).
 - **Подключения Airflow:** `crm_postgres`, `olap_postgres` (задаются через `AIRFLOW_CONN_CRM_POSTGRES`, `AIRFLOW_CONN_OLAP_POSTGRES` в `docker-compose.yaml`).
 - **Структура витрины:** `user_id` (PK), данные из CRM, период, часы использования, число сессий, среднее по дням, `updated_at`.
 
 Список DAG в UI AirFlow:
-![dag_1](/asset/task2/dag_1.png)
+![dag_1](/task2/asset/dag_1.png)
 
 Настроенные подключения к базам данных:
-![dag_2](/asset/task2/dag_2.png)
+![dag_2](/task2/asset/dag_2.png)
 
 Инициализация БД с использованием DAG на примере CRM:
-![dag_3](/asset/task2/dag_3.png)
+![dag_3](/task2/asset/dag_3.png)
 
 Выполнение DAG с основным ETL:
-![dag_4](/asset/task2/dag_4.png)
-![dag_5](/asset/task2/dag_5.png)
+![dag_4](/task2/asset/dag_4.png)
+![dag_5](/task2/asset/dag_5.png)
 
 Записи в БД Olap после выполнения DAG ETL:
-![dag_6](/asset/task2/dag_6.png)
+![dag_6](/task2/asset/dag_6.png)
 
 ### Бэкенд API (Go)
 
-В качестве бэкенда для формирования отчётов реализован сервис на Go ([reports-backend](/reports-backend/main.go)):
+В качестве бэкенда для формирования отчётов реализован сервис на Go ([reports-backend](/task2/reports-backend/main.go)):
 
 - **Сервис:** `reports-backend`, порт 8000.
 - **Эндпоинт:** `GET /reports` — возвращает JSON-отчёт по текущему пользователю из витрины (без сложных вычислений в реальном времени).
 - **Сборка:** добавлен в общий docker-compose.yaml, для сборки - `docker compose build reports-backend`
 
 Логи сервиса Reports-backend:
-![report_1](/asset/task2/report_1.png)
+![report_1](/task2/asset/report_1.png)
 
 ### Ограничение доступа
 
@@ -288,7 +288,7 @@
 После ответа отображаются период, часы использования, число сессий и дата обновления отчёта.
 
 Вывод отчёта в UI пользователю:
-![report_2](/asset/task2/report_2.png)
+![report_2](/task2/asset/report_2.png)
 
 ---
 
