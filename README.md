@@ -335,20 +335,20 @@
 ### Примеры работы
 
 Личный кабинет:
-![report_1](./asset/task3/report_1.png)
+![report_1](./task3/asset/report_1.png)
 
 Сформированный отчёт в личном кабинете:
-![report_2](./asset/task3/report_2.png)
+![report_2](./task3/asset/report_2.png)
 
 Отчёт по ссылке:
-![report_3](./asset/task3/report_3.png)
+![report_3](./task3/asset/report_3.png)
 
 Ссылка на отчёт в адресной строке:
-![report_4](./asset/task3/report_4.png)
+![report_4](./task3/asset/report_4.png)
 
 Попытка открыть отчёт по ссылке в режиме "Инкогнито":
-![report_5](./asset/task3/report_5.png)
-![report_6](./asset/task3/report_6.png)
+![report_5](./task3/asset/report_5.png)
+![report_6](./task3/asset/report_6.png)
 
 ---
 
