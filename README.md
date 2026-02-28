@@ -57,8 +57,8 @@
    - В атрибуты клиента добавлено: `pkce.code.challenge.method": "S256"` — разрешён только метод S256 для PKCE.
    - `directAccessGrantsEnabled` переведён в `false`, чтобы отключить Resource Owner Password Credentials (логин/пароль напрямую) и оставить только Authorization Code + PKCE для SPA.
 
-![pkce_1](./asset/task1/pkce_1.png)
-![pkce_2](./asset/task1/pkce_2.png)
+![pkce_1](./task1/asset/pkce_1.png)
+![pkce_2](./task1/asset/pkce_2.png)
 
 ### Обеспечение безопасного получения и хранение access-и refresh-токенов.
 
@@ -85,9 +85,9 @@
 
 #### Примеры работы
 
-![auth_1](./asset/task1/auth_1.png)
-![auth_2](./asset/task1/auth_2.png)
-![auth_3](./asset/task1/auth_3.png)
+![auth_1](./task1/asset/auth_1.png)
+![auth_2](./task1/asset/auth_2.png)
+![auth_3](./task1/asset/auth_3.png)
 
 ### LDAP для возможности получения данных о пользователях представительства BionicPRO в другой стране
 
@@ -98,26 +98,26 @@
 - Для keycloak добавлена зависимость от openldap.
 - Порты: `389`, `636`.
 
-![ldap_1](./asset/task1/ldap_1.png)
-![ldap_2](./asset/task1/ldap_2.png)
-![ldap_3](./asset/task1/ldap_3.png)
-![ldap_4](./asset/task1/ldap_4.png)
+![ldap_1](./task1/asset/ldap_1.png)
+![ldap_2](./task1/asset/ldap_2.png)
+![ldap_3](./task1/asset/ldap_3.png)
+![ldap_4](./task1/asset/ldap_4.png)
 
 #### Маппинг ролей
 
 - Маппер role-ldap-mapper: группы из `ou=Groups,dc=example,dc=com` (objectClass groupOfNames, атрибут `cn`) отображаются на realm roles с тем же именем. Пользователи получают роли по членству в этих группах (member/DN).
 
-![ldap_5](./asset/task1/ldap_5.png)
+![ldap_5](./task1/asset/ldap_5.png)
 
 #### Синхронизация пользователей
 
-![ldap_6](./asset/task1/ldap_6.png)
-![ldap_7](./asset/task1/ldap_7.png)
+![ldap_6](./task1/asset/ldap_6.png)
+![ldap_7](./task1/asset/ldap_7.png)
 
 #### Авторизация под доменным пользователем
 
-![ldap_8](./asset/task1/ldap_8.png)
-![ldap_9](./asset/task1/ldap_9.png)
+![ldap_8](./task1/asset/ldap_8.png)
+![ldap_9](./task1/asset/ldap_9.png)
 
 ### Настройка MFA
 
@@ -132,10 +132,10 @@
 
 #### Результат настройки MFA в UI
 
-![totp_1](./asset/task1/totp_1.png)
-![totp_2](./asset/task1/totp_2.png)
-![totp_3](./asset/task1/totp_3.png)
-![totp_4](./asset/task1/totp_4.png)
+![totp_1](./task1/asset/totp_1.png)
+![totp_2](./task1/asset/totp_2.png)
+![totp_3](./task1/asset/totp_3.png)
+![totp_4](./task1/asset/totp_4.png)
 
 #### Первый вход пользователя
 
@@ -143,43 +143,43 @@
 - Отсканировать QR-код приложением (Google Authenticator, Authy и др.)
 - Ввести проверочный код для завершения настройки.
 
-![totp_5](./asset/task1/totp_5.png)
-![totp_6](./asset/task1/totp_6.png)
-![totp_7](./asset/task1/totp_7.png)
-![totp_8](./asset/task1/totp_8.png)
+![totp_5](./task1/asset/totp_5.png)
+![totp_6](./task1/asset/totp_6.png)
+![totp_7](./task1/asset/totp_7.png)
+![totp_8](./task1/asset/totp_8.png)
 
 #### Второй вход пользователя
 
 При повторном входе в систему зарпашивается код MFA:
 
-![totp_10](./asset/task1/totp_10.png)
+![totp_10](./task1/asset/totp_10.png)
 
 #### TOTP в профиле пользователя
 
 В профиле пользователя отображается настройка OTP:
 
-![totp_9](./asset/task1/totp_9.png)
+![totp_9](./task1/asset/totp_9.png)
 
 ### Добавление OAuth 2.0 от Яндекс ID
 
 В личном кабинете [https://oauth.yandex.ru/](https://oauth.yandex.ru/) зарегистрировано новое приложения для подключения аутентификации.
-![yaid_1](./asset/task1/yaid_1.png)
+![yaid_1](./task1/asset/yaid_1.png)
 
-![yaid_2](./asset/task1/yaid_2.png)
+![yaid_2](./task1/asset/yaid_2.png)
 
 Для подключения к Keycloak в секцию `identityProviders` добавлена настройка для Яндекс ID и маппинг полей, а в секцию `authenticationFlows` добавлен новый флоу `first broker login`, а в основной флоу добавлен альтернативный шаг `identity-provider-redirector`.
 
 В итоге, на форме авторизации появилась кнопка авторизации Yandex ID
-![yaid_3](./asset/task1/yaid_3.png)
+![yaid_3](./task1/asset/yaid_3.png)
 
 Дополнительное предупреждение (сервис в Яндекс не проходил верификацию)
-![yaid_4](./asset/task1/yaid_4.png)
+![yaid_4](./task1/asset/yaid_4.png)
 
 Форма авторизации в Яндекс и запрашиваемые права:
-![yaid_5](./asset/task1/yaid_5.png)
+![yaid_5](./task1/asset/yaid_5.png)
 
 После авторизации для пользователя в Keycloak автоматически добавляется новая связь IdP:
-![yaid_6](./asset/task1/yaid_6.png)
+![yaid_6](./task1/asset/yaid_6.png)
 
 ### Прокси-сервис для Яндекс ID
 
@@ -192,8 +192,8 @@
 Поэтому было принято решение реализовать промежуточный прокси-сервис, который "подгоняет" форматы запросов и ответов. 
 
 Пример логов сервиса:
-![yaid_7](./asset/task1/yaid_7.png)
-![yaid_8](./asset/task1/yaid_8.png)
+![yaid_7](./task1/asset/yaid_7.png)
+![yaid_8](./task1/asset/yaid_8.png)
 
 ---
 
