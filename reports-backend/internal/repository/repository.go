@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 )
 
 const repoLogPrefix = "[reports-backend][repository]"
@@ -29,7 +29,7 @@ type ReportRepository struct {
 }
 
 func New(dsn string) (*ReportRepository, error) {
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("clickhouse", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +42,9 @@ func New(dsn string) (*ReportRepository, error) {
 func (r *ReportRepository) GetPeriodByUserID(ctx context.Context, userID string) (periodStart, periodEnd string, err error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT period_start, period_end
-		FROM report_mart
-		WHERE user_id = $1
+		FROM reports.report_mart
+		FINAL
+		WHERE user_id = ?
 	`, userID)
 	var start, end time.Time
 	if err := row.Scan(&start, &end); err != nil {
@@ -61,8 +62,9 @@ func (r *ReportRepository) GetByUserID(ctx context.Context, userID string) (*Rep
 		SELECT user_id, full_name, email, registered_at,
 		       period_start, period_end,
 		       usage_hours, session_count, avg_daily_use, updated_at
-		FROM report_mart
-		WHERE user_id = $1
+		FROM reports.report_mart
+		FINAL
+		WHERE user_id = ?
 	`, userID)
 	var rep ReportRow
 	var regAt sql.NullTime

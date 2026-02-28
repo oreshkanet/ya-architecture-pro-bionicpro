@@ -8,6 +8,7 @@ import (
 type Config struct {
 	Port               string
 	OLAPDSN            string
+	ClickHouseDSN      string
 	S3Endpoint         string
 	S3Bucket           string
 	S3AccessKey        string
@@ -22,6 +23,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:               getEnv("PORT", "8000"),
 		OLAPDSN:            getEnv("OLAP_DSN", "postgres://olap_user:olap_password@olap_db:5432/olap_db?sslmode=disable"),
+		ClickHouseDSN:      getEnv("CLICKHOUSE_DSN", "clickhouse://default@clickhouse:9000/reports"),
 		S3Endpoint:         getEnv("S3_ENDPOINT", "http://minio:9000"),
 		S3Bucket:           getEnv("S3_BUCKET", "reports"),
 		S3AccessKey:        getEnv("S3_ACCESS_KEY", "minio_user"),
