@@ -249,6 +249,8 @@ services:
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/"]
       interval: 10s
@@ -289,6 +291,25 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  clickhouse-kafka-poller:
+    image: clickhouse/clickhouse-server:23.8
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./clickhouse/scripts:/scripts:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          clickhouse-client -h clickhouse -q "SELECT * FROM reports.kafka_crm_customers LIMIT 10000 SETTINGS stream_like_engine_allow_direct_select=1" 2>/dev/null || true
+          clickhouse-client -h clickhouse -q "SELECT * FROM reports.kafka_telemetry_events LIMIT 10000 SETTINGS stream_like_engine_allow_direct_select=1" 2>/dev/null || true
+          clickhouse-client -h clickhouse --multiquery < /scripts/refresh_report_mart.sql 2>/dev/null || true
+          sleep 5
+        done
+    restart: unless-stopped
 
   olap_db:
     image: postgres:14
@@ -410,7 +431,7 @@ services:
       - "8000:8000"
     environment:
       PORT: "8000"
-      CLICKHOUSE_DSN: "clickhouse://default@clickhouse:9090/reports"
+      CLICKHOUSE_DSN: "clickhouse://default@clickhouse:9000/reports"
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: reports-realm
       S3_ENDPOINT: http://minio:9000
