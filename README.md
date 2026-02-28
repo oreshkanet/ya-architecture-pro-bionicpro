@@ -354,4 +354,76 @@
 
 ## Повышение оперативности и стабильности работы CRM
 
+Разделение потоков операций достигнуто за счёт CDC (Change Data Capture), Kafka и OLAP в ClickHouse: массовые выгрузки больше не нагружают CRM и телеметрию.
 
+### CDC в PostgreSQL (CRM и Телеметрия)
+
+Для работы с CDC в PostgreSQL:
+
+- В **crm_init.sql** и **telemetry_init.sql**: для таблиц включено `REPLICA IDENTITY FULL`, созданы публикации `dbz_crm` и `dbz_telemetry` для логической репликации.
+- В **docker-compose**: для `crm_db` и `telemetry_db` задан запуск с `wal_level=logical` и `max_replication_slots=8`.
+
+На предыдущем этапе скрипты инициализации БД запускались в AirFlow отдельными DAG. Для полного перехода на CDC скрипты теперь монтируются в контейнер postgres.
+
+### Debezium и Kafka
+
+Добавлены сервисы **Zookeeper**, **Kafka**, **Debezium Connect**, **Kafka UI** (веб-интерфейс для просмотра топиков и сообщений: [http://localhost:8084](http://localhost:8084)):
+
+- Скрипт **debezium/register-connectors.sh** регистрирует два коннектора:
+  - **crm-connector** — таблицы `customers`, `orders` из CRM в топики `crm_db.public.*`.
+  - **telemetry-connector** — таблица `telemetry_events` из телеметрии в топик `telemetry_db.public.telemetry_events`.
+- Сервис **debezium-register** после старта Connect выполняет этот скрипт.
+
+Логи регистрации коннекторов в `debezium-register`:
+![debezium_1](/task4/asset/debezium_1.png)
+
+Логи `debezium-connect` с отправкой данных в топики Kafka:
+![debezium_2](/task4/asset/debezium_2.png)
+
+Состояние топиков в Kafka:
+![kafka_1](/task4/asset/kafka_1.png)
+
+Сообщения в топике `crm_db.public.customers`:
+![kafka_2](/task4/asset/kafka_2.png)
+
+### 3. ClickHouse и KafkaEngine
+
+Для формирования структуры таблиц и View в ClickHouse настроен сервис **ClickHouse** с init-скриптами в **clickhouse/init/**:
+
+  - **01_create_db.sql** — база `reports`.
+  - **02_kafka_tables.sql** — таблицы с движком Kafka для топиков `crm_db.public.customers` и `telemetry_db.public.telemetry_events`.
+  - **03_merge_tree_tables.sql** — `customers_ch`, `telemetry_events_ch` (ReplacingMergeTree по версии из Debezium).
+  - **04_materialized_views_cdc.sql** — MaterializedView для парсинга envelope Debezium из Kafka и вставки в `customers_ch` и `telemetry_events_ch`.
+  - **05_report_mart.sql** — таблица `report_mart` и MaterializedView, которое обновляет таблицу при вставке в `customers_ch`.
+  - **06_report_mart_telemetry_mv.sql** — MaterializedView при вставке в `telemetry_events_ch` обновляет витрину по затронутым пользователям.
+
+Тестирование синхронизации данных (используется **DBeaver** для подключения к БД):
+
+1. Изменяем `customers` в базе данных CRM
+![sync_1](/task4/asset/sync_1.png)
+Изменения поступают в **ClickHouse**:
+![sync_2](/task4/asset/sync_2.png)
+2. Изменяем `telemetry_events` в базе данных телеметрии:
+![sync_3](/task4/asset/sync_3.png)
+Изменения отражаются в **ClickHouse**:
+![sync_4](/task4/asset/sync_4.png)
+
+### 4. Витрина отчётности в ClickHouse
+
+Для организации витрины отчётности в ClickHouse создана таблица **report_mart** — ReplacingMergeTree по `updated_at`, объединяет данные клиентов и агрегаты телеметрии (период последние 30 дней: `usage_hours`, `session_count`, `avg_daily_use`).
+
+Заполняется двумя MaterializedView: при появлении данных в `customers_ch` и в `telemetry_events_ch`.
+
+### 5. Переход API на новую витрину
+
+Для построения отчётов из нового источника данных **reports-backend** переведён на чтение из ClickHouse:
+
+- Конфиг: **CLICKHOUSE_DSN** (по умолчанию `clickhouse://default@clickhouse:9000/reports`).
+- Репозиторий запрашивает `reports.report_mart FINAL` по `user_id` для `GetByUserID` и `GetPeriodByUserID`.
+- В **docker-compose** у reports-backend задан **CLICKHOUSE_DSN** и зависимость от **clickhouse** (вместо olap_db).
+
+Для тестирования скорректировано имя пользователя в базе CRM:
+![reports_1](/task4/asset/reports_1.png)
+
+После синхронизации отчёт отображает изменённую информацию из базы ClickHouse:
+![reports_2](/task4/asset/reports_2.png)
